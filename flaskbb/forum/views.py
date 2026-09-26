@@ -215,7 +215,6 @@ class ViewTopic(MethodView):
         # Fetch some information about the topic
         topic = Topic.get_topic(topic_id, hiddencheck=True)
 
-        # Count the topic views
         topic.views += 1
         topic.save()
 
@@ -226,10 +225,8 @@ class ViewTopic(MethodView):
 
         topic.update_read(real(current_user), topic.forum, forumsread)
 
-        # fetch the posts in the topic
         posts = Topic.get_posts(topic_id, page)
 
-        # Abort if there are no posts on this page
         if len(posts.items) == 0:
             abort(404)
 
