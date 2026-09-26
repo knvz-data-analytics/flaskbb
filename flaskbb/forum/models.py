@@ -357,6 +357,18 @@ class Post(HideableCRUDMixin, db.Model):
 
     @override
     def hide(self, user: "User"):
+        """Hide this post from regular users.
+
+        Careful: if this post is the topic's first post, hiding it
+        actually hides the **whole topic** (delegates to
+        ``self.topic.hide(user)``) instead of just this post - a
+        topic can't be "headless" with its opening post hidden but
+        the topic itself still visible. Callers that only expect a
+        single post to disappear (e.g. flash messages, redirect
+        targets) need to check :meth:`is_first_post` first, which is
+        exactly what ``HidePost``/``UnhidePost`` in
+        ``flaskbb/forum/views.py`` do.
+        """
         if self.hidden:
             return
 
@@ -372,6 +384,9 @@ class Post(HideableCRUDMixin, db.Model):
 
     @override
     def unhide(self):
+        """Unhide this post. Mirrors :meth:`hide`: if this is the
+        topic's first post, this unhides the whole topic instead of
+        just the post (see :meth:`hide` for why)."""
         if not self.hidden:
             return
 
