@@ -178,7 +178,7 @@ class ViewPost(MethodView):
 
     def get(self, post_id: int):
         """Redirects to a post in a topic."""
-        post = first_or_404(db.select(Post).where(Post.id == post_id), True)
+        post = first_or_404(db.select(Post).where(Post.id == post_id), hidden_check=True)
         post_in_topic = db.session.scalar(
             db.select(db.func.count(Post.id)).where(
                 Post.topic_id == post.topic_id, Post.id <= post_id
@@ -213,7 +213,7 @@ class ViewTopic(MethodView):
         page = request.args.get("page", 1, type=int)
 
         # Fetch some information about the topic
-        topic = Topic.get_topic(topic_id, True)
+        topic = Topic.get_topic(topic_id, hiddencheck=True)
 
         # Count the topic views
         topic.views += 1
@@ -253,7 +253,7 @@ class ViewTopic(MethodView):
         ),
     )
     def post(self, topic_id: int, slug: str | None = None):
-        topic = Topic.get_topic(topic_id, True)
+        topic = Topic.get_topic(topic_id, hiddencheck=True)
         form = self.form()
 
         if not form:
@@ -332,7 +332,7 @@ class EditTopic(MethodView):
     ]
 
     def get(self, topic_id: int, slug: str | None = None):
-        topic = Topic.get_topic(topic_id, True)
+        topic = Topic.get_topic(topic_id, hiddencheck=True)
         form = self.form(obj=topic.first_post, title=topic.title)
         form.track_topic.data = current_user.is_tracking_topic(topic)
 
@@ -341,7 +341,7 @@ class EditTopic(MethodView):
         )
 
     def post(self, topic_id: int, slug: str | None = None):
-        topic = Topic.get_topic(topic_id, True)
+        topic = Topic.get_topic(topic_id, hiddencheck=True)
         post = topic.first_post
         form = self.form(obj=post, title=topic.title)
 
@@ -524,23 +524,23 @@ class NewPost(MethodView):
     ]
 
     def get(self, topic_id: int, slug: str | None = None, post_id: int | None = None):
-        topic = Topic.get_topic(topic_id, True)
+        topic = Topic.get_topic(topic_id, hiddencheck=True)
         form = self.form()
         form.track_topic.data = current_user.is_tracking_topic(topic)
 
         if post_id is not None:
-            post = first_or_404(db.select(Post).where(Post.id == post_id), True)
+            post = first_or_404(db.select(Post).where(Post.id == post_id), hidden_check=True)
             form.content.data = format_quote(post.username, post.content)
 
         return render_template("forum/new_post.html", topic=topic, form=form)
 
     def post(self, topic_id: int, slug: str | None = None, post_id: int | None = None):
-        topic = Topic.get_topic(topic_id, True)
+        topic = Topic.get_topic(topic_id, hiddencheck=True)
         form = self.form()
 
         # check if topic exists
         if post_id is not None:
-            post = first_or_404(db.select(Post).where(Post.id == post_id), True)
+            post = first_or_404(db.select(Post).where(Post.id == post_id), hidden_check=True)
 
         if form.validate_on_submit():
             post = form.save(real(current_user), topic)
@@ -567,7 +567,7 @@ class EditPost(MethodView):
     ]
 
     def get(self, post_id: int):
-        post = first_or_404(db.select(Post).where(Post.id == post_id), True)
+        post = first_or_404(db.select(Post).where(Post.id == post_id), hidden_check=True)
 
         if post.is_first_post():
             return redirect(url_for("forum.edit_topic", topic_id=post.topic_id))
@@ -580,7 +580,7 @@ class EditPost(MethodView):
         )
 
     def post(self, post_id: int):
-        post = first_or_404(db.select(Post).where(Post.id == post_id), True)
+        post = first_or_404(db.select(Post).where(Post.id == post_id), hidden_check=True)
         form = self.form(obj=post)
 
         if form.validate_on_submit():
@@ -607,7 +607,7 @@ class ReportView(MethodView):
     def post(self, post_id: int):
         form = self.form()
         if form.validate_on_submit():
-            post = first_or_404(db.select(Post).where(Post.id == post_id), True)
+            post = first_or_404(db.select(Post).where(Post.id == post_id), hidden_check=True)
             form.save(real(current_user), post)
             flash(_("Thanks for reporting."), "success")
 
@@ -760,7 +760,7 @@ class DeleteTopic(MethodView):
     ]
 
     def post(self, topic_id: int, slug: str | None = None):
-        topic = first_or_404(db.select(Topic).where(Topic.id == topic_id), True)
+        topic = first_or_404(db.select(Topic).where(Topic.id == topic_id), hidden_check=True)
         topic.delete()
         return redirect(url_for("forum.view_forum", forum_id=topic.forum_id))
 
@@ -772,7 +772,7 @@ def _set_topic_flag(topic_id: int, attr_name: str, value: bool) -> Topic:
     highlight/trivialize), which previously each repeated the same
     fetch -> mutate -> save sequence by hand.
     """
-    topic = first_or_404(db.select(Topic).where(Topic.id == topic_id), True)
+    topic = first_or_404(db.select(Topic).where(Topic.id == topic_id), hidden_check=True)
     setattr(topic, attr_name, value)
     topic.save()
     return topic
@@ -868,7 +868,7 @@ class DeletePost(MethodView):
     ]
 
     def post(self, post_id: int):
-        post: Post = first_or_404(db.select(Post).where(Post.id == post_id), True)
+        post: Post = first_or_404(db.select(Post).where(Post.id == post_id), hidden_check=True)
         topic_url = post.topic.url
         forum_url = post.topic.forum.url
 
@@ -894,7 +894,7 @@ class RawPost(MethodView):
     ]
 
     def get(self, post_id: int):
-        post = first_or_404(db.select(Post).where(Post.id == post_id), True)
+        post = first_or_404(db.select(Post).where(Post.id == post_id), hidden_check=True)
         return format_quote(username=post.username, content=post.content)
 
 
@@ -999,7 +999,7 @@ class TrackTopic(MethodView):
     ]
 
     def post(self, topic_id: int, slug: str | None = None):
-        topic = first_or_404(db.select(Topic).where(Topic.id == topic_id), True)
+        topic = first_or_404(db.select(Topic).where(Topic.id == topic_id), hidden_check=True)
         real(current_user).track_topic(topic)
         real(current_user).save()
         return redirect(topic.url)
@@ -1019,7 +1019,7 @@ class UntrackTopic(MethodView):
     ]
 
     def post(self, topic_id: int, slug: str | None = None):
-        topic = first_or_404(db.select(Topic).where(Topic.id == topic_id), True)
+        topic = first_or_404(db.select(Topic).where(Topic.id == topic_id), hidden_check=True)
         real(current_user).untrack_topic(topic)
         real(current_user).save()
         return redirect(topic.url)
@@ -1079,7 +1079,7 @@ class UnhideTopic(MethodView):
     decorators = [login_required]
 
     def post(self, topic_id: int, slug: str | None = None):
-        topic = first_or_404(db.select(Topic).where(Topic.id == topic_id), True)
+        topic = first_or_404(db.select(Topic).where(Topic.id == topic_id), hidden_check=True)
 
         denied = _require_hide_permission(
             topic.forum,
