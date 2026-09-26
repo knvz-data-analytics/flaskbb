@@ -360,6 +360,43 @@ class EditTopic(MethodView):
         return EditTopicForm(**kwargs)
 
 
+# Maps a bulk-action form key to (do_topic_action's `action`,
+# `reverse`, and a function that builds the localized flash message).
+# Each of the 7 "simple" bulk actions in ManageForum.post() used to
+# repeat the same do_topic_action() + flash() + redirect() shape by
+# hand; extracting it here removes that duplication. `move` is
+# deliberately NOT in this table -- it has its own extra validation
+# and permission check, so it stays as an explicit branch.
+_BULK_ACTIONS = {
+    "lock": ("locked", False, lambda count: _("%(count)s topics locked.", count=count)),
+    "unlock": ("locked", True, lambda count: _("%(count)s topics unlocked.", count=count)),
+    "highlight": (
+        "important",
+        False,
+        lambda count: _("%(count)s topics highlighted.", count=count),
+    ),
+    "trivialize": (
+        "important",
+        True,
+        lambda count: _("%(count)s topics trivialized.", count=count),
+    ),
+    "delete": ("delete", False, lambda count: _("%(count)s topics deleted.", count=count)),
+    "hide": ("hide", False, lambda count: _("%(count)s topics hidden.", count=count)),
+    "unhide": ("unhide", False, lambda count: _("%(count)s topics unhidden.", count=count)),
+}
+
+
+def _apply_bulk_topic_action(action: str, topics: list, mod_forum_url: str):
+    """Apply one of the simple bulk topic actions from `_BULK_ACTIONS`
+    and build the flash + redirect response for it."""
+    field, reverse, message_for = _BULK_ACTIONS[action]
+    changed = do_topic_action(
+        topics=topics, user=real(current_user), action=field, reverse=reverse
+    )
+    flash(message_for(changed), "success")
+    return redirect(mod_forum_url)
+
+
 class ManageForum(MethodView):
     decorators = [
         login_required,
@@ -408,8 +445,7 @@ class ManageForum(MethodView):
             forumsread=forumsread,
         )
 
-    # TODO(anr): Clean this up. @_@
-    def post(self, forum_id: int, slug: str | None = None):  # noqa: C901
+    def post(self, forum_id: int, slug: str | None = None):
         forum_instance, __ = Forum.get_forum(forum_id=forum_id, user=real(current_user))
         mod_forum_url = url_for(
             "forum.manage_forum", forum_id=forum_instance.id, slug=forum_instance.slug
@@ -432,62 +468,13 @@ class ManageForum(MethodView):
             )
             return redirect(mod_forum_url)
 
-        # locking/unlocking
-        if "lock" in request.form:
-            changed = do_topic_action(
-                topics=tmp_topics,
-                user=real(current_user),
-                action="locked",
-                reverse=False,
-            )
+        for action in _BULK_ACTIONS:
+            if action in request.form:
+                return _apply_bulk_topic_action(action, tmp_topics, mod_forum_url)
 
-            flash(_("%(count)s topics locked.", count=changed), "success")
-            return redirect(mod_forum_url)
-
-        elif "unlock" in request.form:
-            changed = do_topic_action(
-                topics=tmp_topics,
-                user=real(current_user),
-                action="locked",
-                reverse=True,
-            )
-            flash(_("%(count)s topics unlocked.", count=changed), "success")
-            return redirect(mod_forum_url)
-
-        # highlighting/trivializing
-        elif "highlight" in request.form:
-            changed = do_topic_action(
-                topics=tmp_topics,
-                user=real(current_user),
-                action="important",
-                reverse=False,
-            )
-            flash(_("%(count)s topics highlighted.", count=changed), "success")
-            return redirect(mod_forum_url)
-
-        elif "trivialize" in request.form:
-            changed = do_topic_action(
-                topics=tmp_topics,
-                user=real(current_user),
-                action="important",
-                reverse=True,
-            )
-            flash(_("%(count)s topics trivialized.", count=changed), "success")
-            return redirect(mod_forum_url)
-
-        # deleting
-        elif "delete" in request.form:
-            changed = do_topic_action(
-                topics=tmp_topics,
-                user=real(current_user),
-                action="delete",
-                reverse=False,
-            )
-            flash(_("%(count)s topics deleted.", count=changed), "success")
-            return redirect(mod_forum_url)
-
-        # moving
-        elif "move" in request.form:
+        # moving has its own extra validation/permission check, so it
+        # isn't part of the generic _BULK_ACTIONS table above.
+        if "move" in request.form:
             new_forum_id = request.form.get("forum", type=int)
 
             if not new_forum_id:
@@ -515,27 +502,8 @@ class ManageForum(MethodView):
 
             return redirect(mod_forum_url)
 
-        # hiding/unhiding
-        elif "hide" in request.form:
-            changed = do_topic_action(
-                topics=tmp_topics, user=real(current_user), action="hide", reverse=False
-            )
-            flash(_("%(count)s topics hidden.", count=changed), "success")
-            return redirect(mod_forum_url)
-
-        elif "unhide" in request.form:
-            changed = do_topic_action(
-                topics=tmp_topics,
-                user=real(current_user),
-                action="unhide",
-                reverse=False,
-            )
-            flash(_("%(count)s topics unhidden.", count=changed), "success")
-            return redirect(mod_forum_url)
-
-        else:
-            flash(_("Unknown action requested"), "danger")
-            return redirect(mod_forum_url)
+        flash(_("Unknown action requested"), "danger")
+        return redirect(mod_forum_url)
 
 
 class NewPost(MethodView):
