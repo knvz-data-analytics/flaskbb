@@ -6,6 +6,8 @@ the Parte 1 baseline for the flaskbb/forum/ module.
 
 from werkzeug.datastructures import MultiDict
 
+import pytest
+
 from flaskbb.forum.forms import (
     EditTopicForm,
     PostForm,
@@ -98,6 +100,14 @@ class TestEditTopicForm:
             "Edited Title",
             "Edited content",
         )
+
+    def test_raises_clear_error_without_obj(self, database, post_request_context):
+        """Readability improvement (Tarefa 2.4): before, forgetting
+        obj= raised a cryptic AttributeError ('NoneType' object has
+        no attribute 'topic'). Now it raises a ValueError that says
+        exactly what's missing and why."""
+        with pytest.raises(ValueError, match="requires obj="):
+            EditTopicForm(meta={"csrf": False})
 
 
 class TestSearchPageForm:

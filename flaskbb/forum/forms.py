@@ -115,7 +115,13 @@ class EditTopicForm(TopicForm):
     submit = SubmitField(_("Save topic"))
 
     def __init__(self, *args, **kwargs):
-        self.topic = kwargs.get("obj").topic
+        obj = kwargs.get("obj")
+        if obj is None:
+            raise ValueError(
+                "EditTopicForm requires obj=<post> so it knows which "
+                "topic is being edited."
+            )
+        self.topic = obj.topic
         TopicForm.__init__(self, *args, **kwargs)
 
     def populate_obj(self, *objs):
