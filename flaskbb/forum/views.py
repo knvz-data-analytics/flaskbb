@@ -451,14 +451,14 @@ class ManageForum(MethodView):
             "forum.manage_forum", forum_id=forum_instance.id, slug=forum_instance.slug
         )
 
-        ids = request.form.getlist("rowid")
-        tmp_topics = (
-            db.session.execute(db.select(Topic).where(Topic.id.in_(ids)))
+        topic_ids = request.form.getlist("rowid")
+        selected_topics = (
+            db.session.execute(db.select(Topic).where(Topic.id.in_(topic_ids)))
             .scalars()
             .all()
         )
 
-        if not len(tmp_topics) > 0:
+        if not len(selected_topics) > 0:
             flash(
                 _(
                     "In order to perform this action you have to select at "
@@ -470,7 +470,7 @@ class ManageForum(MethodView):
 
         for action in _BULK_ACTIONS:
             if action in request.form:
-                return _apply_bulk_topic_action(action, tmp_topics, mod_forum_url)
+                return _apply_bulk_topic_action(action, selected_topics, mod_forum_url)
 
         # moving has its own extra validation/permission check, so it
         # isn't part of the generic _BULK_ACTIONS table above.
@@ -495,7 +495,7 @@ class ManageForum(MethodView):
                 )
                 return redirect(mod_forum_url)
 
-            if new_forum.move_topics_to(tmp_topics):
+            if new_forum.move_topics_to(selected_topics):
                 flash(_("Topics moved."), "success")
             else:
                 flash(_("Failed to move topics."), "danger")
