@@ -765,6 +765,19 @@ class DeleteTopic(MethodView):
         return redirect(url_for("forum.view_forum", forum_id=topic.forum_id))
 
 
+def _set_topic_flag(topic_id: int, attr_name: str, value: bool) -> Topic:
+    """Fetch a topic, set one boolean flag on it, and persist it.
+
+    Shared by the single-topic moderation toggles below (lock/unlock,
+    highlight/trivialize), which previously each repeated the same
+    fetch -> mutate -> save sequence by hand.
+    """
+    topic = first_or_404(db.select(Topic).where(Topic.id == topic_id), True)
+    setattr(topic, attr_name, value)
+    topic.save()
+    return topic
+
+
 class LockTopic(MethodView):
     decorators = [
         login_required,
@@ -780,9 +793,7 @@ class LockTopic(MethodView):
     ]
 
     def post(self, topic_id: int, slug: str | None = None):
-        topic = first_or_404(db.select(Topic).where(Topic.id == topic_id), True)
-        topic.locked = True
-        topic.save()
+        topic = _set_topic_flag(topic_id, "locked", True)
         return redirect(topic.url)
 
 
@@ -801,9 +812,7 @@ class UnlockTopic(MethodView):
     ]
 
     def post(self, topic_id: int, slug: str | None = None):
-        topic = first_or_404(db.select(Topic).where(Topic.id == topic_id), True)
-        topic.locked = False
-        topic.save()
+        topic = _set_topic_flag(topic_id, "locked", False)
         return redirect(topic.url)
 
 
@@ -822,9 +831,7 @@ class HighlightTopic(MethodView):
     ]
 
     def post(self, topic_id: int, slug: str | None = None):
-        topic = first_or_404(db.select(Topic).where(Topic.id == topic_id), True)
-        topic.important = True
-        topic.save()
+        topic = _set_topic_flag(topic_id, "important", True)
         return redirect(topic.url)
 
 
@@ -843,9 +850,7 @@ class TrivializeTopic(MethodView):
     ]
 
     def post(self, topic_id: int | None = None, slug: str | None = None):
-        topic = first_or_404(db.select(Topic).where(Topic.id == topic_id), True)
-        topic.important = False
-        topic.save()
+        topic = _set_topic_flag(topic_id, "important", False)
         return redirect(topic.url)
 
 
