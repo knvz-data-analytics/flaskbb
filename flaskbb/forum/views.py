@@ -1052,17 +1052,48 @@ class UntrackTopic(MethodView):
         return redirect(topic.url)
 
 
+def _require_hide_permission(forum: Forum, denied_message: str, redirect_url: str):
+    """Check the 'can hide/unhide' permission shared by the four views
+    below and, if it's denied, build the flash + redirect response the
+    caller should return immediately. Returns None when allowed.
+
+    `denied_message` is passed in (already wrapped in a literal
+    `_(...)` call by each caller) rather than composed here, so babel
+    can still find and extract each distinct translatable string.
+    """
+    if not Permission(Has("makehidden"), IsAtleastModeratorInForum(forum=forum)):
+        flash(denied_message, "danger")
+        return redirect(redirect_url)
+    return None
+
+
+def _redirect_if_already(condition: bool, message: str, redirect_url: str):
+    """If `condition` is True, build the flash + redirect response for
+    'there is nothing to do here' and return it; otherwise return
+    None. Centralizing this guard (instead of repeating it per view)
+    is what fixes the missing-`return` bug that used to live in
+    UnhidePost.post().
+    """
+    if condition:
+        flash(message, "warning")
+        return redirect(redirect_url)
+    return None
+
+
 class HideTopic(MethodView):
     decorators = [login_required]
 
     def post(self, topic_id: int, slug: str | None = None):
         topic = first_or_404(db.select(Topic).where(Topic.id == topic_id))
 
-        if not Permission(
-            Has("makehidden"), IsAtleastModeratorInForum(forum=topic.forum)
-        ):
-            flash(_("You do not have permission to hide this topic"), "danger")
-            return redirect(topic.url)
+        denied = _require_hide_permission(
+            topic.forum,
+            _("You do not have permission to hide this topic"),
+            topic.url,
+        )
+        if denied:
+            return denied
+
         topic.hide(user=current_user)
         topic.save()
 
@@ -1076,11 +1107,15 @@ class UnhideTopic(MethodView):
 
     def post(self, topic_id: int, slug: str | None = None):
         topic = first_or_404(db.select(Topic).where(Topic.id == topic_id), True)
-        if not Permission(
-            Has("makehidden"), IsAtleastModeratorInForum(forum=topic.forum)
-        ):
-            flash(_("You do not have permission to unhide this topic"), "danger")
-            return redirect(topic.url)
+
+        denied = _require_hide_permission(
+            topic.forum,
+            _("You do not have permission to unhide this topic"),
+            topic.url,
+        )
+        if denied:
+            return denied
+
         topic.unhide()
         topic.save()
         return redirect(topic.url)
@@ -1092,15 +1127,19 @@ class HidePost(MethodView):
     def post(self, post_id: int):
         post = first_or_404(db.select(Post).where(Post.id == post_id))
 
-        if not Permission(
-            Has("makehidden"), IsAtleastModeratorInForum(forum=post.topic.forum)
-        ):
-            flash(_("You do not have permission to hide this post"), "danger")
-            return redirect(post.topic.url)
+        denied = _require_hide_permission(
+            post.topic.forum,
+            _("You do not have permission to hide this post"),
+            post.topic.url,
+        )
+        if denied:
+            return denied
 
-        if post.hidden:
-            flash(_("Post is already hidden"), "warning")
-            return redirect(post.topic.url)
+        already = _redirect_if_already(
+            post.hidden, _("Post is already hidden"), post.topic.url
+        )
+        if already:
+            return already
 
         post.hide(current_user)
         post.save()
@@ -1121,15 +1160,19 @@ class UnhidePost(MethodView):
     def post(self, post_id: int):
         post = first_or_404(db.select(Post).where(Post.id == post_id))
 
-        if not Permission(
-            Has("makehidden"), IsAtleastModeratorInForum(forum=post.topic.forum)
-        ):
-            flash(_("You do not have permission to unhide this post"), "danger")
-            return redirect(post.topic.url)
+        denied = _require_hide_permission(
+            post.topic.forum,
+            _("You do not have permission to unhide this post"),
+            post.topic.url,
+        )
+        if denied:
+            return denied
 
-        if not post.hidden:
-            flash(_("Post is already unhidden"), "warning")
-            redirect(post.topic.url)
+        already = _redirect_if_already(
+            not post.hidden, _("Post is already unhidden"), post.topic.url
+        )
+        if already:
+            return already
 
         post.unhide()
         post.save()
