@@ -649,15 +649,12 @@ class ReportView(MethodView):
 class MemberList(MethodView):
     form = UserSearchForm
 
-    def get(self):
-        page = request.args.get("page", 1, type=int)
-        sort_by = request.args.get("sort_by", "reg_date")
-        order_by = request.args.get("order_by", "asc")
-
-        if order_by == "asc":
-            order_func = asc
-        else:
-            order_func = desc
+    def _resolve_sort(self, sort_by: str, order_by: str):
+        """Translate the 'sort_by'/'order_by' query params into the
+        SQLAlchemy ordering function and column to sort by. Shared by
+        get() and post(), which previously duplicated this exact
+        logic."""
+        order_func = asc if order_by == "asc" else desc
 
         if sort_by == "reg_date":
             sort_obj = User.id
@@ -665,6 +662,14 @@ class MemberList(MethodView):
             sort_obj = User.post_count
         else:
             sort_obj = User.username
+
+        return order_func, sort_obj
+
+    def get(self):
+        page = request.args.get("page", 1, type=int)
+        sort_by = request.args.get("sort_by", "reg_date")
+        order_by = request.args.get("order_by", "asc")
+        order_func, sort_obj = self._resolve_sort(sort_by, order_by)
 
         users = db.paginate(
             db.select(User).order_by(order_func(sort_obj)),
@@ -680,18 +685,7 @@ class MemberList(MethodView):
         page = request.args.get("page", 1, type=int)
         sort_by = request.args.get("sort_by", "reg_date")
         order_by = request.args.get("order_by", "asc")
-
-        if order_by == "asc":
-            order_func = asc
-        else:
-            order_func = desc
-
-        if sort_by == "reg_date":
-            sort_obj = User.id
-        elif sort_by == "post_count":
-            sort_obj = User.post_count
-        else:
-            sort_obj = User.username
+        order_func, sort_obj = self._resolve_sort(sort_by, order_by)
 
         form = self.form()
         if form.validate():
